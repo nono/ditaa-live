@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/bmizerany/pat.go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,42 +15,40 @@ const (
 	execname = "ditaa"
 )
 
-type Server struct {
-	filename string
-}
-
-func (s Server) fail(w http.ResponseWriter, err error) {
+func fail(w http.ResponseWriter, err error) {
 	fmt.Fprintln(os.Stderr, err)
 	fmt.Fprintln(w, "Error")
 }
 
-func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	tmpfile, err := ioutil.TempFile("", "ditaa")
+func index(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Index\n")
+}
+
+func image(w http.ResponseWriter, r *http.Request) {
+	tmpfile, err := ioutil.TempFile("", execname)
 	if err != nil {
-		s.fail(w, err)
+		fail(w, err)
 		return
 	}
 	tmpname := tmpfile.Name()
 	defer os.Remove(tmpname)
+	defer tmpfile.Close()
 
-	cmdline := fmt.Sprintf("%s %s -o %s", execname, s.filename, tmpname)
-	fmt.Printf("cmdline: %s\n", cmdline)
-
-	cmd := exec.Command(execname, s.filename, "-o", tmpname)
+	filename := r.URL.Query().Get(":filename")
+	cmd := exec.Command(execname, filename, "-o", tmpname)
 	err = cmd.Run()
 	if err != nil {
-		s.fail(w, err)
+		fail(w, err)
 		return
 	}
 
 	tmpfile.Close()
 	tmpfile, err = os.Open(tmpname)
 	if err != nil {
-		s.fail(w, err)
+		fail(w, err)
 		return
 	}
 	io.Copy(w, tmpfile)
-	tmpfile.Close()
 }
 
 func main() {
@@ -57,17 +56,15 @@ func main() {
 	flag.StringVar(&addr, "addr", "127.0.0.1:4444", "Bind to this address:port")
 	flag.Parse()
 	args := flag.Args()
-	if len(args) != 1 {
-		fmt.Println("Usage: splint [options] <go file>...")
-		flag.PrintDefaults()
-		os.Exit(1)
+	if len(args) > 0 {
+		os.Chdir(args[0])
 	}
-
-	server := &Server{args[0]}
 	fmt.Printf("Listening on http://%s/\n", addr)
-	fmt.Printf("Watching %s\n", server.filename)
 
-	err := http.ListenAndServe(addr, server)
+	m := pat.New()
+	m.Get("/", http.HandlerFunc(index))
+	m.Get("/png/:filename", http.HandlerFunc(image))
+	err := http.ListenAndServe(addr, m)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't listen on %s\n", addr)
 		os.Exit(1)

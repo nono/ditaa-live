@@ -3,14 +3,53 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 )
 
-type MyServer struct{}
+const (
+	execname = "ditaa"
+)
 
-func (my MyServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprint(w, "hello, world!\n")
+type Server struct {
+	filename string
+}
+
+func (s Server) fail(w http.ResponseWriter, err error) {
+	fmt.Fprintln(os.Stderr, err)
+	fmt.Fprintln(w, "Error")
+}
+
+func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	tmpfile, err := ioutil.TempFile("", "ditaa")
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	tmpname := tmpfile.Name()
+	defer os.Remove(tmpname)
+
+	cmdline := fmt.Sprintf("%s %s -o %s", execname, s.filename, tmpname)
+	fmt.Printf("cmdline: %s\n", cmdline)
+
+	cmd := exec.Command(execname, s.filename, "-o", tmpname)
+	err = cmd.Run()
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	tmpfile.Close()
+	tmpfile, err = os.Open(tmpname)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	io.Copy(w, tmpfile)
+	tmpfile.Close()
 }
 
 func main() {
@@ -23,15 +62,14 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	filename := args[0]
 
-	var server MyServer
+	server := &Server{args[0]}
+	fmt.Printf("Listening on http://%s/\n", addr)
+	fmt.Printf("Watching %s\n", server.filename)
+
 	err := http.ListenAndServe(addr, server)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't listen on %s\n", addr)
 		os.Exit(1)
 	}
-
-	fmt.Printf("Listening on http://%s/\n", addr)
-	fmt.Printf("Watching %s\n", filename)
 }

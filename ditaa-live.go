@@ -2,6 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"exp/inotify"
 	"flag"
 	"fmt"
 	"io"
@@ -10,14 +11,15 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const execname = "ditaa"
 
 var addr string
 
-// Send the list of files in the current directory
 func listing(ws *websocket.Conn) {
+	defer ws.Close()
 	entries, err := ioutil.ReadDir(".")
 	if err != nil {
 		fmt.Println(err)
@@ -34,11 +36,51 @@ func listing(ws *websocket.Conn) {
 }
 
 func notify(ws *websocket.Conn) {
+	var filename string
+	defer ws.Close()
+	err := websocket.JSON.Receive(ws, &filename)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	watcher, err := inotify.NewWatcher()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer watcher.Close()
+
+	for {
+		time.Sleep(10 * time.Millisecond)
+		err = watcher.AddWatch(filename, inotify.IN_MODIFY)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		select {
+		case ev := <-watcher.Event:
+			watcher.RemoveWatch(filename)
+			err = websocket.JSON.Send(ws, ev)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		case err = <-watcher.Error:
+			fmt.Println(err)
+			return
+		}
+	}
 }
 
 func image(w http.ResponseWriter, filename string) {
-	fmt.Fprintf(os.Stderr, "image: %s\n", filename)
-	// TODO test if filename exists and returns a 404 if it's not the case
+	_, err := os.Lstat(filename)
+	if err != nil {
+		notfound := fmt.Sprintf("Error 404: %s has not been found!\n", filename)
+		http.Error(w, notfound, 404)
+		return
+	}
 
 	tmpfile, err := ioutil.TempFile("", execname)
 	if err != nil {
@@ -74,10 +116,23 @@ func page(w http.ResponseWriter, filename string) {
 </head>
 <body>
   <h1>%s</h1>
-  <img src="/png/%s" />
+  <img id="ditaa" src="/png/%s" />
+  <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+  <script>
+  var ws = new WebSocket("ws://%s/notify")
+    , img = $("#ditaa")
+    , path = $("h1").text();
+  ws.onopen = function() {
+    ws.send('"' + path + '"');
+  };
+  ws.onmessage = function(msg) {
+    var ts = +new Date();
+    img.attr({ src: "/png/" + path + "?" + ts});
+  };
+  </script>
 </body>
 </html>
-`, filename, filename, filename)
+`, filename, filename, filename, addr)
 }
 
 func index(w http.ResponseWriter) {
@@ -100,7 +155,6 @@ func index(w http.ResponseWriter) {
       $("<li><a href='/html/" + files[i] + "'>" + files[i] + "</a>")
         .appendTo(ls);
     }
-    ws.close();
   };
   </script>
 </body>

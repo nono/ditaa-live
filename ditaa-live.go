@@ -5,6 +5,7 @@ import (
 	"exp/inotify"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,12 +15,62 @@ import (
 	"time"
 )
 
-const execname = "ditaa"
+type Page struct {
+	Filename string
+	Addr     string
+}
+
+const (
+	execname  = "ditaa"
+	index_tpl = `
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ditaa-live</title>
+</head>
+<body>
+  <h1>Ditaa-live</h1>
+  <ul id="listing">
+  {{range .}}
+    <li><a href="/html/{{.}}">{{.}}</a></li>
+  {{end}}
+  </ul>
+</body>
+</html>
+`
+	page_tpl  = `
+{{define "page"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{.Filename}}</title>
+</head>
+<body>
+  <h1>{{.Filename}}</h1>
+  <img id="ditaa" src="/png/{{.Filename}}" />
+  <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+  <script>
+  if (window["MozWebSocket"]) window.WebSocket = window.MozWebSocket;
+  var ws = new WebSocket("ws://{{.Addr}}/notify")  // XXX
+    , img = $("#ditaa")
+    , path = $("h1").text();
+  ws.onopen = function() {
+    ws.send('"' + path + '"');
+  };
+  ws.onmessage = function(msg) {
+    var ts = +new Date();
+    img.attr({ src: "/png/" + path + "?" + ts});
+  };
+  </script>
+</body>
+</html>
+{{end}}
+`
+)
 
 var addr string
 
-func listing(ws *websocket.Conn) {
-	defer ws.Close()
+func listing() []string {
 	entries, err := ioutil.ReadDir(".")
 	if err != nil {
 		fmt.Println(err)
@@ -29,10 +80,7 @@ func listing(ws *websocket.Conn) {
 	for i, f := range entries {
 		files[i] = f.Name()
 	}
-	err = websocket.JSON.Send(ws, files)
-	if err != nil {
-		fmt.Println(err)
-	}
+	return files
 }
 
 func notify(ws *websocket.Conn) {
@@ -108,58 +156,19 @@ func image(w http.ResponseWriter, filename string) {
 }
 
 func page(w http.ResponseWriter, filename string) {
-	fmt.Fprintf(w, `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>%s</title>
-</head>
-<body>
-  <h1>%s</h1>
-  <img id="ditaa" src="/png/%s" />
-  <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
-  <script>
-  var ws = new WebSocket("ws://%s/notify")
-    , img = $("#ditaa")
-    , path = $("h1").text();
-  ws.onopen = function() {
-    ws.send('"' + path + '"');
-  };
-  ws.onmessage = function(msg) {
-    var ts = +new Date();
-    img.attr({ src: "/png/" + path + "?" + ts});
-  };
-  </script>
-</body>
-</html>
-`, filename, filename, filename, addr)
+	t, err := template.New("page").Parse(page_tpl)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+	t.ExecuteTemplate(w, "page", &Page{filename, addr})
 }
 
 func index(w http.ResponseWriter) {
-	fmt.Fprintf(w, `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>ditaa-live</title>
-</head>
-<body>
-  <h1>Ditaa-live</h1>
-  <ul id="listing"></ul>
-  <script src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
-  <script>
-  var ws = new WebSocket("ws://%s/ls")
-    , ls = $("#listing");
-  ws.onmessage = function(msg) {
-    var files = jQuery.parseJSON(msg.data)
-    for (var i in files) {
-      $("<li><a href='/html/" + files[i] + "'>" + files[i] + "</a>")
-        .appendTo(ls);
-    }
-  };
-  </script>
-</body>
-</html>
-`, addr)
+	t, err := template.New("index").Parse(index_tpl)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+	t.ExecuteTemplate(w, "index", listing())
 }
 
 func dispatch(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +199,6 @@ func main() {
 	fmt.Printf("Listening on http://%s/\n", addr)
 
 	http.Handle("/notify", websocket.Handler(notify))
-	http.Handle("/ls", websocket.Handler(listing))
 	http.HandleFunc("/", dispatch)
 	err := http.ListenAndServe(addr, nil)
 	if err != nil {

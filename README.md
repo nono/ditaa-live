@@ -9,7 +9,7 @@ reloaded when the ditaa file is modified. It works by opening a websocket
 connection to the server that will monitor the file with inotify (Linux-only).
 
 **Note**: ditaa-live only works in a browser that supports WebSocket,
-i.e. Chrome or Firefox (version 11.0 at least).
+i.e. Chrome or Firefox.
 
 
 How to use it?
@@ -20,16 +20,7 @@ And then, run these instructions:
 
     go get github.com/nono/ditaa-live
     ditaa-live path/to/a/directory
-    chromium-browser http://127.0.0.1:4444/
-
-
-TODO
-----
-
-* Check if ditaa-live is installable with `go get`
-* Add a minimal CSS
-* Fix it in Firefox 10 (use MozWebSocket instead of WebSocket)
-* Learn how to make tests in golang ;-)
+    x-www-browser http://127.0.0.1:4444/
 
 
 Credits

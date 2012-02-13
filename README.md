@@ -29,12 +29,15 @@ And then, run these instructions:
 TODO
 ----
 
+* Check if ditaa-live is installable with `go get`
 * Add a minimal CSS
 * Fix it in Firefox 10 (use MozWebSocket instead of WebSocket)
+* Learn how to make tests in golang ;-)
 
 
 Credits
 -------
 
-♡2011 by Bruno Michel. Copying is an act of love. Please copy and share.
+♡2012 by Bruno Michel. Copying is an act of love. Please copy and share.
+
 Released under the MIT license

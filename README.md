@@ -18,11 +18,8 @@ How to use it?
 Install golang-weekly (2012-02-07) and don't forget to set `$GOROOT`.
 And then, run these instructions:
 
-    git clone git://github.com/nono/ditaa-live.git
-    cd ditaa-live
-    go get code.google.com/p/go.net/websocket
-    go build -o bin/ditaa-live *.go
-    ./bin/ditaa-live tests
+    go get github.com/nono/ditaa-live
+    ditaa-live path/to/a/directory
     chromium-browser http://127.0.0.1:4444/
 
 

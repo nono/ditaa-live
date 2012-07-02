@@ -2,7 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"exp/inotify"
+	"github.com/howeyc/fsnotify"
 	"flag"
 	"fmt"
 	"html/template"
@@ -92,7 +92,7 @@ func notify(ws *websocket.Conn) {
 		return
 	}
 
-	watcher, err := inotify.NewWatcher()
+	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -101,7 +101,7 @@ func notify(ws *websocket.Conn) {
 
 	for {
 		time.Sleep(10 * time.Millisecond)
-		err = watcher.AddWatch(filename, inotify.IN_MODIFY)
+		err = watcher.Watch(filename)
 		if err != nil {
 			fmt.Println(err)
 			return

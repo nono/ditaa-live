@@ -18,6 +18,10 @@ How to use it?
 Install golang-weekly (2012-02-07) and don't forget to set `$GOROOT`.
 And then, run these instructions:
 
+install ditaa (see http://ditaa.sourceforge.net/#download) on os x: `brew install ditaa`
+		
+    go get github.com/howeyc/fsnotify        
+
     go get github.com/nono/ditaa-live
     ditaa-live path/to/a/directory
     x-www-browser http://127.0.0.1:4444/

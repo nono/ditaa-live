@@ -15,13 +15,16 @@ i.e. Chrome or Firefox.
 How to use it?
 --------------
 
+Install [ditaa](http://ditaa.sourceforge.net/#download)
+
+* On Debian: `apt-get install ditaa`
+* On os X: `brew install ditaa`
+
 Install golang-weekly (2012-02-07) and don't forget to set `$GOROOT`.
 And then, run these instructions:
 
-install ditaa (see http://ditaa.sourceforge.net/#download) on os x: `brew install ditaa`
-		
-    go get github.com/howeyc/fsnotify        
-
+    go get github.com/howeyc/fsnotify
+    go get code.google.com/p/go.net/websocket
     go get github.com/nono/ditaa-live
     ditaa-live path/to/a/directory
     x-www-browser http://127.0.0.1:4444/
